@@ -1,0 +1,13 @@
+COHORT,LD_PANEL_ANCESTRY,PHENOTYPE,SAMPLE_SIZE,SUMSTATS_FILENAME
+PRScsx_test_data1,AFR,bin_PHENO1,50000,${launchDir}/Input/AFR.bin_PHENO1.sumstats.sim.txt.gz
+PRScsx_test_data2,AFR,bin_PHENO2,50000,${launchDir}/Input/AFR.bin_PHENO2.sumstats.sim.txt.gz
+PRScsx_test_data3,AFR,quant_PHENO1,50000,${launchDir}/Input/AFR.quant_PHENO1.sumstats.sim.txt.gz
+PRScsx_test_data4,AFR,quant_PHENO2,50000,${launchDir}/Input/AFR.quant_PHENO2.sumstats.sim.txt.gz
+PRScsx_test_data1,EAS,bin_PHENO1,50000,${launchDir}/Input/EAS.bin_PHENO1.sumstats.sim.txt.gz
+PRScsx_test_data2,EAS,bin_PHENO2,50000,${launchDir}/Input/EAS.bin_PHENO2.sumstats.sim.txt.gz
+PRScsx_test_data3,EAS,quant_PHENO1,50000,${launchDir}/Input/EAS.quant_PHENO1.sumstats.sim.txt.gz
+PRScsx_test_data4,EAS,quant_PHENO2,50000,${launchDir}/Input/EAS.quant_PHENO2.sumstats.sim.txt.gz
+PRScsx_test_data1,EUR,bin_PHENO1,50000,${launchDir}/Input/EUR.bin_PHENO1.sumstats.sim.txt.gz
+PRScsx_test_data2,EUR,bin_PHENO2,50000,${launchDir}/Input/EUR.bin_PHENO2.sumstats.sim.txt.gz
+PRScsx_test_data3,EUR,quant_PHENO1,50000,${launchDir}/Input/EUR.quant_PHENO1.sumstats.sim.txt.gz
+PRScsx_test_data4,EUR,quant_PHENO2,50000,${launchDir}/Input/EUR.quant_PHENO2.sumstats.sim.txt.gz
