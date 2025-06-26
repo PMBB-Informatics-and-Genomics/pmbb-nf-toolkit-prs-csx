@@ -19,8 +19,8 @@ chromosomes          :  ${params.chromosome_list}
 Input Directories and LD Panel Type
 ============================================
 genome_build         :  ${params.genome_build}
-LD_directory         :  ${params.LD_directory}
-LD_panel_type        :  ${params.LD_panel_type}
+LD_directory         :  ${params.ld_directory}
+LD_panel_type        :  ${params.ld_panel_type}
 Sumstats colnames    :  ${params.sumstats_colnames}
 
 PRScsx Parameters
@@ -66,13 +66,23 @@ workflow PRScsx_setup {
         // descriptor_channel = Channel.fromList(descriptor_tuple)
 
         descriptor_lines = descriptor_file.readLines()
-        descriptor_tuple = []
-        descriptor_lines[1..-1].each {
-            line ->
-            /* groovylint-disable-next-line GStringExpressionWithinString */
-            lineG = line.replace('${launchDir}', "${launchDir}")
-            line_parts = lineG.toString().trim().replace('[', '').replace(']', '').split(',') as List
-            descriptor_tuple.add(line_parts)
+        if (descriptor_file.text.tokenize('\n').size() <= 2) {
+            descriptor_lines[1..-1].each {
+                line ->
+                /* groovylint-disable-next-line GStringExpressionWithinString */
+                lineG = line.replace('${launchDir}', "${launchDir}")
+                line_parts = lineG.toString().trim().replace('[', '').replace(']', '').split(',') as List
+                descriptor_tuple = line_parts
+            }
+        } else {
+            descriptor_tuple = []
+            descriptor_lines[1..-1].each {
+                line ->
+                /* groovylint-disable-next-line GStringExpressionWithinString */
+                lineG = line.replace('${launchDir}', "${launchDir}")
+                line_parts = lineG.toString().trim().replace('[', '').replace(']', '').split(',') as List
+                descriptor_tuple.add(line_parts)
+            }
         }
 
         descriptor_channel = Channel.fromList(descriptor_tuple)
@@ -241,7 +251,7 @@ workflow PRScsx {
                                                                genome_build,
                                                                ld_panel_type,
                                                                my_python)
-        
+
         // cat_bim process
         // inputs
         // this command collects the bim files so they can be concatenated by phenotype in the process
@@ -257,7 +267,7 @@ workflow PRScsx {
         second join: joins with concatenated bim file channel
         combine: combines with chromosome channel
         */
-        
+
         pgs_input_sample_size_pheno_bim_file_chr_group_tuple = sumstats_summary.map { 
             score_group, cohort, ancestry, pheno, sample_size, sumstats -> new Tuple (
             score_group, pheno, sample_size) 
@@ -272,20 +282,21 @@ workflow PRScsx {
         if (params.meta_flag == 'True') {
             ancestry_list.add('META')
         }
+
         // define LD directory channel
         ld_dir = "${params['ld_directory']}"
         // make PRScsx flags channels
-        param_a="${params.param_a}"
-        param_b="${params.param_b}"
-        param_phi="${params.param_phi}"
-        mcmc_iterations="${params.mcmc_iterations}"
-        mcmc_burnin="${params.mcmc_burnin}"
-        mcmc_thinning_factor="${params.mcmc_thinning_factor}"
-        meta_flag="${params.meta_flag}"
-        write_posterior_samples="${params.write_posterior_samples}"
-        seed="${params.seed}"
+        param_a = "${params.param_a}"
+        param_b = "${params.param_b}"
+        param_phi = "${params.param_phi}"
+        mcmc_iterations = "${params.mcmc_iterations}"
+        mcmc_burnin = "${params.mcmc_burnin}"
+        mcmc_thinning_factor = "${params.mcmc_thinning_factor}"
+        meta_flag = "${params.meta_flag}"
+        write_posterior_samples = "${params.write_posterior_samples}"
+        seed = "${params.seed}"
         // define PRScsx path
-        my_prscsx="${params.my_prscsx}"
+        my_prscsx = "${params.my_prscsx}"
         // call prscsx process
         prscsx_output = prscsx(pgs_input_sample_size_pheno_bim_file_chr_group_tuple,
                                 ancestry_list,
@@ -307,8 +318,7 @@ workflow PRScsx {
         if META flag is true- create cohort name with META included (not an output of PRScsx process)
         create channel from sumstats summary with score group, ancestry, pheno and cohort
         */
-        
-        score_group_ancestry_pheno_cohort=sumstats_summary.map { score_group, cohort, ancestry, pheno, sample_size, filename -> new Tuple (score_group, ancestry, pheno, cohort) }
+        score_group_ancestry_pheno_cohort = sumstats_summary.map { score_group, cohort, ancestry, pheno, sample_size, filename -> new Tuple (score_group, ancestry, pheno, cohort) }
         // conditionally add META cohort if meta flag = true
         if (params.meta_flag == 'True') {
             meta = sumstats_summary.map{ score_group, cohort, ancestry, pheno, sample_size, filename -> 
@@ -324,7 +334,6 @@ workflow PRScsx {
         groupTuple: group channel by score group, ancestry, and phenotype
         join: join with channel with refactored cohort variables
         */
-        
         prscsx_output_reformat = prscsx_output.transpose().map {
             score_group, pheno, chromosome, file ->
             new Tuple(
@@ -337,8 +346,17 @@ workflow PRScsx {
         ).join(
             score_group_ancestry_pheno_cohort_meta, by: [0, 1, 2]
         )
+        // true/false flag to convert output to b38
+        b38_flag = "${params.b38_output_genome_build}"
         // call cat_pgs_outputs process
-        prscsx_output_cat = cat_pgs_outputs(prscsx_output_reformat, my_python)
+        prscsx_output_cat = cat_pgs_outputs(prscsx_output_reformat,
+                                            my_python,
+                                            b38_flag,
+                                            ld_panel_type,
+                                            meta_flag,
+                                            write_posterior_samples,
+                                            mcmc_burnin,
+                                            mcmc_thinning_factor)
         
         // make_pgs_boxplots process
         // define plotting script path
@@ -358,7 +376,9 @@ workflow PRScsx {
                                             pgs_violinplots_script,
                                             ancestry_list,
                                             pheno_score_group_list,
-                                            my_python)
+                                            my_python,
+                                            write_posterior_samples,
+                                            meta_flag)
 
         // reformat prscsx output for emit
         prscsx_weights = prscsx_output_cat.map { score_group, cohort, ancestry, pheno, file -> new Tuple(cohort, ancestry, pheno, file) }
@@ -396,8 +416,8 @@ process make_pgs_input_and_bim {
         import sys
 
         # import sumstats and snp info file
-        sumstats = pd.read_csv("${sumstats}",sep=None,engine='python')
-        snp = pd.read_csv("/app/snpinfo_mult_${ld_panel_type}_hm3_map_b37_b38",sep='\t')
+        sumstats = pd.read_csv("${sumstats}", sep = None, engine = 'python', dtype = {'${pval_se_colname}' : str})
+        snp = pd.read_csv("/app/snpinfo_mult_${ld_panel_type}_hm3_map_b37_b38", sep = '\t')
 
         # clean sumstats
         ## remove insertions and deletions- I need to add other annotations for insertions and deletions as well
@@ -421,7 +441,7 @@ process make_pgs_input_and_bim {
         ## remove 'chr' from chromosome column in sumstats if it is there
         if sumstats['${chr_colname}'].dtype == 'object':
             print('chr character is present')
-            sumstats['${chr_colname}'] = sumstats['${chr_colname}'].str.replace('chr','')
+            sumstats['${chr_colname}'] = sumstats['${chr_colname}'].str.replace('chr', '')
         else:
             print('chr character is not present')
 
@@ -433,10 +453,10 @@ process make_pgs_input_and_bim {
         snp = snp[['SNPINFO_ID','${genome_build}_CHR_BP']]
 
         # merge sumstats and SNP file
-        merge = sumstats.merge(snp,how='inner',on ='${genome_build}_CHR_BP')
+        merge = sumstats.merge(snp,how='inner',on = '${genome_build}_CHR_BP')
 
         # create bim file
-        bim=merge.copy()
+        bim = merge.copy()
 
         # add zero column to bim file
         bim['zero'] = 0
@@ -450,10 +470,10 @@ process make_pgs_input_and_bim {
                     '${a2_colname}']]
 
         # sort bim file
-        bim.sort_values(by = ['${chr_colname}','${pos_colname}'], inplace = True)
+        bim.sort_values(by = ['${chr_colname}', '${pos_colname}'], inplace = True)
 
         # export bim file
-        bim.to_csv("${ancestry}.${pheno}.${score_group}.bim_file.bim", sep='\t', index=False,header=False)
+        bim.to_csv("${ancestry}.${pheno}.${score_group}.bim_file.bim", sep = '\t', index = False, header = False)
 
         # check for beta vs. odds ratio and do some checks
         double_checked_or_beta = False
@@ -469,7 +489,7 @@ process make_pgs_input_and_bim {
                 if 'b' in '${bin_beta_or_colname}'.lower():
                     double_checked_or_beta = True
 
-            merge.rename(columns={'${bin_beta_or_colname}' : beta_vs_or},inplace=True)
+            merge.rename(columns={'${bin_beta_or_colname}' : beta_vs_or}, inplace = True)
 
         elif '${quant_beta_or_colname}' in merge.columns:
             print('using quantitative column')
@@ -482,7 +502,7 @@ process make_pgs_input_and_bim {
                 if 'b' in '${quant_beta_or_colname}'.lower():
                     double_checked_or_beta = True
 
-            merge.rename(columns={'${quant_beta_or_colname}' : beta_vs_or}, inplace=True)
+            merge.rename(columns={'${quant_beta_or_colname}' : beta_vs_or}, inplace = True)
 
         else:
             sys.exit("BETA or OR columns specified were not found in file")
@@ -493,7 +513,9 @@ process make_pgs_input_and_bim {
             sys.exit("Column renaming - could not detect OR vs BETA")
 
         # check for p-value vs. standard error
-        p_vs_se = 'P' if merge['${pval_se_colname}'].max() <= 1 else 'SE'
+        merge['P_SE_CHECK'] = merge['${pval_se_colname}'].astype(float)
+        p_vs_se = 'P' if merge['P_SE_CHECK'].max() <= 1 else 'SE'
+        merge.drop(columns = ['P_SE_CHECK'], inplace = True)
 
         # also do a little bit of regex for protection
         double_checked_p_se = False
@@ -515,16 +537,16 @@ process make_pgs_input_and_bim {
                         '${pval_se_colname}']]
 
         # drop rows with missing data in beta/OR column
-        merge.dropna(subset=[beta_vs_or], inplace=True)
+        merge.dropna(subset = [beta_vs_or], inplace = True)
 
         # rename columns in pgs input
-        merge.rename(columns = {'SNPINFO_ID':'SNP',
+        merge.rename(columns = {'SNPINFO_ID' : 'SNP',
                                 '${a1_colname}' : 'A1',
                                 '${a2_colname}' : 'A2',
-                                '${pval_se_colname}' : p_vs_se},inplace = True)
+                                '${pval_se_colname}' : p_vs_se}, inplace = True)
 
         # export pgs input file
-        merge.to_csv("${ancestry}.${pheno}.${score_group}.PRScsx_input.txt", sep='\t', index=False)
+        merge.to_csv("${ancestry}.${pheno}.${score_group}.PRScsx_input.txt", sep = '\t', index = False)
         """
 
     stub:
@@ -582,7 +604,6 @@ process cat_bim {
         touch ${score_group}.${pheno}.bim_file.bim
         """
 }
-
 process prscsx {
     publishDir "${launchDir}/PRScsx_output/chromosome_separated_outputs/"
     machineType 'n2-standard-4'
@@ -692,6 +713,12 @@ process cat_pgs_outputs {
     input:
         tuple val(score_group), val(ancestry), val(pheno), file(prscsx_output_files), val(cohort)
         val(my_python)
+        val(b38_flag)
+        val(ld_panel_type)
+        val(meta_flag)
+        val(write_posterior_samples)
+        val(mcmc_burnin)
+        val(mcmc_thinning_factor)
     output:
         tuple val(score_group), val(cohort), val(ancestry), val(pheno), path("${ancestry}.${pheno}.${score_group}.PRScsx_output.txt")
     script:
@@ -702,30 +729,79 @@ process cat_pgs_outputs {
 
     # reformat prscsx_output_files channel object into a list that python can loop through
     # save prscsx output files into a string
-    string="${prscsx_output_files}"
+    string = "${prscsx_output_files}"
     # create a list of prscsx output files from that string
-    list=string.split()
+    list = string.split()
     print(list)
 
     # create empty list in which files that need to be concatenated can be added to
-    dfs=[]
+    dfs = []
 
     # loop through prscsx output files, read them in and append them to the empty list
     for f in list:
-        dfs.append(pd.read_table(f,sep='\t',header=None))
+        dfs.append(pd.read_table(f, sep = '\t', header = None))
 
     # concatenate all prscsx output files for each ancestry_pheno pair (output files are chromosome separated)
     df = pd.concat(dfs)
 
     # sort concatenated file by chromosome and then position
-    df.sort_values(by = [0,2], inplace=True)
+    df.sort_values(by = [0, 2], inplace = True)
     print(df)
 
-    # add column names
-    df = df.rename(columns={0:'CHR',1:'RSID',2:'POS',3:'A1',4:'A2',5:'PGS'})
+    # check if write pst samples == True
+    if ("${write_posterior_samples}".lower() == "true") and ("${meta_flag}".lower() == "true") and ("${ancestry}" == "META"):
+        # add column names except PGS
+        df = df.rename(columns = {0 : 'CHR', 1 : 'RSID', 2 : 'POS', 3 : 'A1', 4 : 'A2'})
+
+        # identify number of PGS columns
+        num_pgs_cols = int("${mcmc_burnin}") / int("${mcmc_thinning_factor}") + 5
+
+        # loop through PGS columns and rename by index
+        pgs_col_list = []
+        for index, col in enumerate(range(5, int(num_pgs_cols))):
+            colnum = index + 1
+            colname = 'PGS.' + str(colnum)
+            pgs_col_list.append(colname)
+            df = df.rename(columns = {col : colname})
+    else:
+        # add column names with one score column name
+        df = df.rename(columns = {0 : 'CHR', 1 : 'RSID', 2 : 'POS', 3 : 'A1', 4 : 'A2', 5 : 'PGS'})
+
+        # subset columns
+        df = df[['CHR', 'RSID', 'POS', 'A1', 'A2', 'PGS']]
+
+    # format to b38 if flag is true
+    if "${b38_flag}" == "true":
+        # read in snp info file
+        snp = pd.read_csv("/app/snpinfo_mult_${ld_panel_type}_hm3_map_b37_b38", sep = '\t')
+
+        # rename columns in snp file
+        snp.rename(columns = {'SNPINFO_ID' : 'RSID'}, inplace = True)
+
+        # split b38 chr:pos column in snp file
+        snp[['CHR', 'POS']] = snp['b38_CHR_BP'].str.split(':', expand = True)
+
+        # drop b37 id in snp file
+        snp.drop(columns = ['b37_CHR_BP'], inplace = True)
+
+        # drop chr and pos columns in pgs df
+        df.drop(columns = ['CHR', 'POS'], inplace = True)
+
+        # merge snp file and pgs output
+        df = df.merge(snp, on = 'RSID', how = 'inner')
+
+        if ("${write_posterior_samples}".lower() == "true") and ("${meta_flag}".lower() == "true") and ("${ancestry}" == "META"):
+            # create column list
+            all_col_list = ['CHR', 'RSID', 'POS', 'A1', 'A2'] + pgs_col_list
+
+            # reorder columns with multiple PGS
+            df = df[all_col_list]
+        else:
+            # reorder columns with one PGS
+            df = df[['CHR', 'RSID', 'POS', 'A1', 'A2', 'PGS']]
 
     # export concatenated file
-    df.to_csv("${ancestry}.${pheno}.${score_group}.PRScsx_output.txt",sep='\t',index=False)
+    df.to_csv("${ancestry}.${pheno}.${score_group}.PRScsx_output.txt", sep = '\t', index = False)
     """
 
     stub:
@@ -743,6 +819,8 @@ process make_pgs_violinplots {
         val(ancestry_list)
         val(pheno_score_group_list)
         val(my_python)
+        val(meta_flag)
+        val(write_posterior_samples)
 
     output:
         path('combined_PGS_violinplot.png')
@@ -754,7 +832,9 @@ process make_pgs_violinplots {
         ${my_python} ${pgs_violinplots_script} \
         --input_file_list '${summary_files}' \
         --ancestry_list '${ancestry_list}' \
-        --pheno_score_group_list '${pheno_score_group_list}'
+        --pheno_score_group_list '${pheno_score_group_list}' \
+        --write_pst_samples '${write_posterior_samples}' \
+        --meta '${meta_flag}'
         """
 
     stub:
