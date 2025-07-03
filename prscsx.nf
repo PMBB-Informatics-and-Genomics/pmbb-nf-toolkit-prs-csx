@@ -383,6 +383,8 @@ workflow PRScsx {
         // reformat prscsx output for emit
         prscsx_weights = prscsx_output_cat.map { score_group, cohort, ancestry, pheno, file -> new Tuple(cohort, ancestry, pheno, file) }
         
+        json_params = dump_params_to_json(params)
+
     emit:
         prscsx_weights
 
@@ -842,3 +844,19 @@ process make_pgs_violinplots {
         touch 'combined_PGS_violinplot.png'
         '''
 }
+
+import groovy.json.JsonBuilder
+process dump_params_to_json {
+    publishDir "${launchDir}/Summary", mode: 'copy'
+    machineType 'n2-standard-2'
+
+    input:
+        val params_dict
+    output:
+        path('prscsx_params.json')
+    shell:
+        """
+        echo '${new JsonBuilder(params_dict).toPrettyString().replace(';', '|')}' > prscsx_params.json
+        """
+}
+
