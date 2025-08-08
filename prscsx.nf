@@ -392,7 +392,7 @@ workflow PRScsx {
 
 process make_pgs_input_and_bim {
     publishDir "${launchDir}/${cohort}/"
-    memory = '60 GB'
+    memory = '65 GB'
     machineType 'n2-standard-16'
     input:
         tuple val(score_group), val(cohort), val(ancestry), val(pheno), path(sumstats)
@@ -434,11 +434,11 @@ process make_pgs_input_and_bim {
         sumstats['${a2_colname}'] = sumstats['${a2_colname}'].str.upper()
 
         ## remove missing values from all important columns except beta/OR (that will be done later)
-        sumstats.dropna(subset=['${chr_colname}',
-                                '${pos_colname}',
-                                '${a1_colname}',
-                                '${a2_colname}',
-                                '${pval_se_colname}'],inplace=True)
+        sumstats.dropna(subset = ['${chr_colname}',
+                                    '${pos_colname}',
+                                    '${a1_colname}',
+                                    '${a2_colname}',
+                                    '${pval_se_colname}'], inplace = True)
 
         ## remove 'chr' from chromosome column in sumstats if it is there
         if sumstats['${chr_colname}'].dtype == 'object':
@@ -447,15 +447,19 @@ process make_pgs_input_and_bim {
         else:
             print('chr character is not present')
 
+        ## convert chromosome and position columns to int
+        sumstats['${chr_colname}'] = sumstats['${chr_colname}'].astype(int)
+        sumstats['${pos_colname}'] = sumstats['${pos_colname}'].astype(int)
+
         # add CHR_BP column to both files
         ## sumstats
         sumstats['${genome_build}_CHR_BP'] = sumstats['${chr_colname}'].astype(str) + ':' + sumstats['${pos_colname}'].astype(str)
 
         # subset snp file
-        snp = snp[['SNPINFO_ID','${genome_build}_CHR_BP']]
+        snp = snp[['SNPINFO_ID', '${genome_build}_CHR_BP']]
 
         # merge sumstats and SNP file
-        merge = sumstats.merge(snp,how='inner',on = '${genome_build}_CHR_BP')
+        merge = sumstats.merge(snp, how = 'inner', on = '${genome_build}_CHR_BP')
 
         # create bim file
         bim = merge.copy()
@@ -485,7 +489,7 @@ process make_pgs_input_and_bim {
             beta_vs_or = 'OR' if merge['${bin_beta_or_colname}'].min() >= 0 else 'BETA'
 
             if beta_vs_or == 'OR':
-                if 'or' in '${bin_beta_or_colname}'.lower():
+                if 'o' in '${bin_beta_or_colname}'.lower():
                     double_checked_or_beta = True
             elif beta_vs_or == 'BETA':
                 if 'b' in '${bin_beta_or_colname}'.lower():
@@ -498,17 +502,16 @@ process make_pgs_input_and_bim {
             beta_vs_or = 'OR' if merge['${quant_beta_or_colname}'].min() >= 0 else 'BETA'
 
             if beta_vs_or == 'OR':
-                if 'or' in '${quant_beta_or_colname}'.lower():
+                if 'o' in '${quant_beta_or_colname}'.lower():
                     double_checked_or_beta = True
             elif beta_vs_or == 'BETA':
                 if 'b' in '${quant_beta_or_colname}'.lower():
                     double_checked_or_beta = True
 
-            merge.rename(columns={'${quant_beta_or_colname}' : beta_vs_or}, inplace = True)
+            merge.rename(columns = {'${quant_beta_or_colname}' : beta_vs_or}, inplace = True)
 
         else:
             sys.exit("BETA or OR columns specified were not found in file")
-
         print(beta_vs_or)
 
         if not double_checked_or_beta:
@@ -527,6 +530,9 @@ process make_pgs_input_and_bim {
         elif p_vs_se == 'SE':
             if 's' in '${pval_se_colname}'.lower():
                 double_checked_p_se = True
+        else:
+            sys.exit("P or SE columns specified were not found in file")
+        print(p_vs_se)
 
         if not double_checked_p_se:
             sys.exit("Column renaming - could not detect P vs SE")
@@ -576,7 +582,7 @@ process cat_bim {
         # reformat all_bim_files channel object into a list that python can loop through
         string = "${all_bim_files}"
         print(string)
-        list=string.split()
+        list = string.split()
         print(list)
 
         # create empty list in which files that need to be concatenated can be added to
@@ -585,7 +591,7 @@ process cat_bim {
         # in a loop, read in each bim file and add to the empty list
         for f in list:
             print(f)
-            dfs.append(pd.read_table(f, sep='\t', header=None))
+            dfs.append(pd.read_table(f, sep = '\t', header = None))
 
         # concatenate all the dataframes in the list (all bim files)
         df = pd.concat(dfs)
@@ -595,10 +601,10 @@ process cat_bim {
         df.drop_duplicates(keep = 'first',inplace = True)
 
         # sort concatenated dataframe by chromosome and then position
-        df.sort_values(by = [0, 3], inplace=True)
+        df.sort_values(by = [0, 3], inplace = True)
 
         # export concatenated dataframe
-        df.to_csv("${score_group}.${pheno}.bim_file.bim", sep='\t', index=False, header=False)
+        df.to_csv("${score_group}.${pheno}.bim_file.bim", sep = '\t', index = False, header = False)
         """
 
     stub:
