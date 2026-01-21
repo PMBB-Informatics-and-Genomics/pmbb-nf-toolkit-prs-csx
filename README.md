@@ -6,24 +6,15 @@ Documentation for PRS-CSx
 
 
 PRScsx is a tool used to calculate polygenic scores. It integrates GWAS summary statistics and LD panels across multiple ancestry groups to improve global polygenic prediction. This nextflow pipeline seemlessly takes GWAS summary statistics, makes the input files for PRScsx, runs PRScsx, concatenates the chromosome-separated outcomes, and produces a summary violin plot, all in a parallelized fashion.
+- [Tool Paper Link for Reference](https://www.nature.com/articles/s41588-022-01054-7)
+- [Tool Documentation Link for Reference](https://github.com/getian107/PRScsx/tree/master)
+- [Example Config File](https://github.com/PMBB-Informatics-and-Genomics/pmbb-geno-pheno-toolkit/tree/main/Example_Configs/prscsx.config)
+- [Example nextflow.config File](https://github.com/PMBB-Informatics-and-Genomics/pmbb-geno-pheno-toolkit/tree/main/Example_Configs/nextflow.config)
 
-[Paper Link for Reference](https://www.nature.com/articles/s41588-022-01054-7)
-
-[Tool Documentation Link](https://github.com/getian107/PRScsx/tree/master)
-
-[Example Module Config File](https://github.com/PMBB-Informatics-and-Genomics/pmbb-geno-pheno-toolkit/tree/main/Example_Configs/prscsx.config)
-
-[Example nextflow.config File](https://github.com/PMBB-Informatics-and-Genomics/pmbb-geno-pheno-toolkit/tree/main/Example_Configs/nextflow.config)
-## Cloning Github Repository
-
-
-* Command: `git clone https://github.com/PMBB-Informatics-and-Genomics/geno_pheno_workbench.git`
-
-* Navigate to relevant workflow directory...
 ## Software Requirements
 
 
-* [Nextflow version 23.04.1.5866](https://www.nextflow.io/docs/latest/cli.html)
+* [Nextflow version 24.04.3](https://www.nextflow.io/docs/latest/cli.html)
 
 * [Singularity 3.8.3](https://sylabs.io/docs/) OR [Docker 4.30.0](https://docs.docker.com/)
 ## Commands for Running the Workflow
@@ -52,8 +43,104 @@ PRScsx is a tool used to calculate polygenic scores. It integrates GWAS summary 
     * `-profile all_of_us` uses the Docker image on All of Us Workbench
 
 * More info: [Nextflow documentation](https://www.nextflow.io/docs/latest/cli.html)
-# Input Files for PRS-CSx
+# Detailed Pipeline Steps
 
+## Part I: Setup
+
+
+1. Start your own tools directory and go there. You may do this in your project analysis directory, but it often makes sense to clone into a general `tools` location
+
+```sh
+# Make a directory to clone the pipeline into
+TOOLS_DIR="/path/to/tools/directory"
+mkdir $TOOLS_DIR
+cd $TOOLS_DIR
+```
+
+2. Download the source code by cloning from git
+
+```sh
+git clone None
+cd $TOOLS_DIR/pmbb-nf-toolkit-prscsx
+```
+
+3. Build the singularity image
+    - you may call the image whatever you like, and store it wherever you like. Just make sure you specify the name in `nextflow.conf`
+    - this does NOT have to be done for every saige-based analysis, but it is good practice to re-build every so often as we update regularly.
+
+
+```sh
+cd $TOOLS_DIR/pmbb-nf-toolkit-prscsx
+singularity build prscsx.sif docker://pennbiobank/prscsx:latest
+```
+## Part II: Configure your run
+
+
+1. Make a separate analysis/run/working directory.
+    - The quickest way to get started, is to run the analysis in the folder the pipeline is run. However, subsequent analyses will over-write results from previous analyses.
+    - ❗This step is optional, but We Highly recommend making a `tools` directory separate from your `run` directory. We recommend storing the `nextflow.conf` in here as it shouldn't change between runs.
+
+
+```sh
+WDIR="/path/to/analysis/run1"
+mkdir -p $WDIR
+cd $WDIR
+```
+
+2. Fill out the `nextflow.config` file for your system.
+    - See [Nextflow configuration documentation](https://www.nextflow.io/docs/latest/config.html) for information on how to configure this file. An example can be found on our GitHub: [Nextflow Config](https://github.com/PMBB-Informatics-and-Genomics/pmbb-geno-pheno-toolkit/blob/main/Example_Configs/nextflow.config).
+    - ❗IMPORTANTLY, you must configure a user-defined profile for your run environments (local, docker, saige, cluster, etc.). If multiple profiles are specified, run with a specific profile using `nextflow run -profile $MY_PROFILE`.
+    - For singularity, The profile's attribute `process.container` should be set to `'/path/to/prscsx.sif'` (replace `/path/to` with the location where you built the image above). See [Nextflow Executor Information](https://www.nextflow.io/docs/latest/executor.html) for more details.
+    - ⚠️As this file remains mostly unchanged for your system, We recommend storing this file in the `tools/pipeline` directory and passing it to the pipeline with `-c /path/to/nextflow.config`.
+
+
+3. Create a pipeline-specific `.config` file specifying your run parameters and input files. See Below for workflow-specific parameters and what they mean.
+    - Everything in here can be configured in `nextflow.config`, however we find it easier to separate the system-level profiles from the individual run parameters.
+    - Examples can be found in our Pipeline-Specific [Example Config Files](https://github.com/PMBB-Informatics-and-Genomics/pmbb-geno-pheno-toolkit/tree/main/Example_Configs).
+    - you can compartamentalize your config file as much as you like by passing
+    - There are 2 ways to specify the config file during a run:
+
+        - with the `-c` option on the command line: `nextflow run -c PRScsx/prscsx.config`
+        - in the `nextflow.config`: at the top of the file add: `includeConfig PRScsx/prscsx.config`
+
+## Part III: Run your analysis
+
+
+❗We HIGHLY recommend doing a STUB run to test the analysis using the `-stub` flag. This is a dry run to make sure your environment, parameters, and input_files are specified and formatted correctly.❗We also HIGHLY recommend doing a TEST run with the included test data in `$TOOLS_DIR/pmbb-nf-toolkit-prscsx/test_data`we have several pre-configured analyses runs with input data and fully-specified config files.
+
+```sh
+# run an exwas stub
+nextflow run $TOOLS_DIR/pmbb-nf-toolkit-prscsx/prscsx.nf \
+   -profile cluster \
+   -c /path/to/nextflow.config \
+   -c PRScsx/prscsx.config \
+   -stub
+
+# run an exwas for real
+nextflow run $TOOLS_DIR/pmbb-nf-toolkit-prscsx/prscsx.nf \
+   -profile cluster \
+   -c /path/to/nextflow.config \
+   -c PRScsx/prscsx.config
+
+# resume an exwas run if it was interrupted or ran into an error
+nextflow run $TOOLS_DIR/pmbb-nf-toolkit-prscsx/prscsx.nf \
+   -profile cluster \
+   -c /path/to/nextflow.config \
+   -c PRScsx/prscsx.config \
+   -resume
+```
+# Pipeline Parameters
+
+## Input Files for PRS-CSx
+
+
+* LD Panels
+
+    * Genetic ancestry specific linkage disequilibrium (LD) panels. These can be generated from 1000 genomes (1KG) data or UK Biobank (UKBB data). They must be for one of the five 1000 genomes super populations (AFR, AMR, EAS, EUR, SAS). These can be downloaded from the PRS-CSx GitHub: 
+
+    * Type: LD Panels
+
+    * Format: hdf5
 
 * my_prscsx
 
@@ -92,15 +179,7 @@ PRScsx is a tool used to calculate polygenic scores. It integrates GWAS summary 
     ```
     CHR     SNP     BP      A1      A2      FRQ_AFR FRQ_AMR FRQ_EAS FRQ_EUR FRQ_SAS FLP_AFR FLP_AMR FLP_EAS FLP_EUR FLP_SAS
     ```
-
-* LD Panels
-
-    * Genetic ancestry specific linkage disequilibrium (LD) panels. These can be generated from 1000 genomes (1KG) data or UK Biobank (UKBB data). They must be for one of the five 1000 genomes super populations (AFR, AMR, EAS, EUR, SAS). These can be downloaded from the PRS-CSx GitHub: 
-
-    * Type: LD Panels
-
-    * Format: hdf5
-# Output Files for PRS-CSx
+## Output Files for PRS-CSx
 
 
 * Violinplots
@@ -125,22 +204,26 @@ PRScsx is a tool used to calculate polygenic scores. It integrates GWAS summary 
     ```
 
         * Parallel By: Cohort, Phenotype, Ancestry
-# Parameters for PRS-CSx
+## Other Parameters for PRS-CSx
 
-## PRScsx
+### PRScsx
 
 
-* `my_prscsx` (Type: File Path)
+* `write_posterior_samples` (Type: Bool (Java: true or false))
 
-    * Path to the 
+    * If True and META_FLAG also True, write all posterior samples of meta-analyzed SNP effect sizes after thinning. Default is False.
+
+* `mcmc_burnin` (Type: String)
+
+    * Number of burnin iterations. Default is 500 * the number of discovery populations
 
 * `seed` (Type: String)
 
     * Non-negative integer which seeds the random number generator. This can be any number, I always pick 7.
 
-* `write_posterior_samples` (Type: Bool (Java: true or false))
+* `param_b` (Type: String)
 
-    * If True and META_FLAG also True, write all posterior samples of meta-analyzed SNP effect sizes after thinning. Default is False.
+    * Parameter b in the gamma-gamma prior. Default is 0.5
 
 * `meta_flag` (Type: Bool (Java: true or false))
 
@@ -150,30 +233,26 @@ PRScsx is a tool used to calculate polygenic scores. It integrates GWAS summary 
 
     * Thinning factor of the Markov chain. Default is 5
 
-* `mcmc_burnin` (Type: String)
+* `my_prscsx` (Type: File Path)
 
-    * Number of burnin iterations. Default is 500 * the number of discovery populations
+    * Path to the 
 
-* `mcmc_iterations` (Type: String)
+* `LD_directory` (Type: File Path)
 
-    * Total number of MCMC iterations. Default is 1,000 * the number of discovery populations
-
-* `param_phi` (Type: String)
-
-    * if NOT using, specify as 'auto'. if using: Global shrinkage parameter phi. If phi is not specified, it will be learnt from the data using a fully Bayesian approach. This usually works well for polygenic traits with very large GWAS sample sizes (hundreds of thousands of subjects). For GWAS with limited sample sizes (including most of the current disease GWAS), fixing phi to 1e-02 (for highly polygenic traits) or 1e-04 (for less polygenic traits), or doing a small-scale grid search (e.g., phi = 1e-6, 1e-4, 1e-2, 1) to find the optimal phi value in the validation dataset often improves perdictive performance. format should be 1e-02 (make sure to include the zero after the minus)
-
-* `param_b` (Type: String)
-
-    * Parameter b in the gamma-gamma prior. Default is 0.5
+    * FULL FILE PATH to directory with LD panels and Multi-Ancestry SNP info file. you MUST use LD panels from the PRScsx github because they have RSIDs matching the multi-ancestry SNP file that is specific to PRScsx. You must include a slash (/) after the directory name. If you want to use a relative path, add "${launchDir}/" in front of the path
 
 * `param_a` (Type: String)
 
     * Parameter a in the gamma-gamma prior. Default is 1
 
-* `LD_directory` (Type: File Path)
+* `param_phi` (Type: String)
 
-    * FULL FILE PATH to directory with LD panels and Multi-Ancestry SNP info file. you MUST use LD panels from the PRScsx github because they have RSIDs matching the multi-ancestry SNP file that is specific to PRScsx. You must include a slash (/) after the directory name. If you want to use a relative path, add "${launchDir}/" in front of the path
-## Pre-Processing
+    * if NOT using, specify as 'auto'. if using: Global shrinkage parameter phi. If phi is not specified, it will be learnt from the data using a fully Bayesian approach. This usually works well for polygenic traits with very large GWAS sample sizes (hundreds of thousands of subjects). For GWAS with limited sample sizes (including most of the current disease GWAS), fixing phi to 1e-02 (for highly polygenic traits) or 1e-04 (for less polygenic traits), or doing a small-scale grid search (e.g., phi = 1e-6, 1e-4, 1e-2, 1) to find the optimal phi value in the validation dataset often improves perdictive performance. format should be 1e-02 (make sure to include the zero after the minus)
+
+* `mcmc_iterations` (Type: String)
+
+    * Total number of MCMC iterations. Default is 1,000 * the number of discovery populations
+### Pre-Processing
 
 
 * `genome_build` (Type: String)
@@ -183,32 +262,32 @@ PRScsx is a tool used to calculate polygenic scores. It integrates GWAS summary 
 * `sumstats_colnames` (Type: Map (Dictionary))
 
     * dictionary that specifies the column names in your sumstats files. specifies chromosome column, position column, A1 column, A2 column, quantitative phenotype effect size column (beta or odds ratio), binary phenotype effect size column (beta or odds ratio), and significance column (pvalue or standard error). this assumes that all sumstats files have the same column names. do not change the keys (chr_colname, pos_colname, etc), only change the value accordingly.
-## Workflow
+### Workflow
 
 
 * `LD_panel_type` (Type: String)
 
     * LD panel types: 1000 genomes or UKBiobank. Label 1000 genomes as “1kg” and UKBB as “ukbb”
 
-* `prscsx_group_cohort_map` (Type: Map (Dictionary))
-
-    * prscsx computes scores for multiple ancestry groups (defined by LD reference panels) at the same time. it is possible that cohort names can include ancestry labels (especially when stitching a GWAS workflow to PRScsx). this maps a "score group nickname" (key) to cohort names (values) included in descriptor table. because prscsx can only include one analysis from each ancestry group, DO NOT duplicate ancestry groups in analysis groups. thus, prscsx will compute scores simultaneously by score group and phenotype. keys should be score groups and values should be a list of cohorts in each score group
-
 * `input_descriptor_table_colnames` (Type: Map (Dictionary))
 
     * dictionary including names of essential columns in input descriptor table. specifies cohort (nickname or dataset), ancestry of LD reference panel (AFR, AMR, EAS, EUR, SAS), phenotype GWAS sample size, and summary statistic FULL FILE PATH AND FILENAME column names (If you want to use a relative path, add "${launchDir}/" in front of the path)
+
+* `my_python` (Type: File Path)
+
+    * Path to the python executable to be used for python scripts - often it comes from the docker/singularity container (/opt/conda/bin/python)
 
 * `input_descriptor_table_filename (PRS-CSx)` (Type: File Path)
 
     * file that specifies the cohort, ancestry, phenotype, GWAS sample size, and summary statistics filename. must have five columns in this order: cohort, ancestry, phenotype, GWAS sample size, summary statistics filename. MUST BE A CSV (comma delimited)
 
+* `prscsx_group_cohort_map` (Type: Map (Dictionary))
+
+    * prscsx computes scores for multiple ancestry groups (defined by LD reference panels) at the same time. it is possible that cohort names can include ancestry labels (especially when stitching a GWAS workflow to PRScsx). this maps a "score group nickname" (key) to cohort names (values) included in descriptor table. because prscsx can only include one analysis from each ancestry group, DO NOT duplicate ancestry groups in analysis groups. thus, prscsx will compute scores simultaneously by score group and phenotype. keys should be score groups and values should be a list of cohorts in each score group
+
 * `gwas_meta_workflow_stitching` (Type: Bool (Java: true or false))
 
     * whether an individual is stitching another workflow to this one, specifically, stitching a GWAS or meta analysis to this workflow. DO NOT put true if stitching PRScsx to a workflow AFTER. Only put true if stitching to a workflow BEFORE PRScsx
-
-* `my_python` (Type: File Path)
-
-    * Path to the python executable to be used for python scripts - often it comes from the docker/singularity container (/opt/conda/bin/python)
 # Configuration and Advanced Workflow Files
 
 ## Example Config File Contents (From Path)
@@ -323,34 +402,6 @@ params {
 }
 
 ```
-## Current Dockerfile for Container/Image
-
-
-```docker
-FROM continuumio/miniconda3
-WORKDIR /app
-
-# copy local SNP maps (match SNPs in LD panels) into docker image 
-COPY snpinfo_mult_1kg_hm3_map_b37_b38 /app/snpinfo_mult_1kg_hm3_map_b37_b38
-COPY snpinfo_mult_ukbb_hm3_map_b37_b38 /app/snpinfo_mult_ukbb_hm3_map_b37_b38
-
-# give SNP maps read permissions
-RUN chmod +r /app/snpinfo_mult_1kg_hm3_map_b37_b38 \
-    && chmod +r /app/snpinfo_mult_ukbb_hm3_map_b37_b38 \    
-    # install tools needed to install PRScsx
-    && apt-get update \
-    && apt-get install -y --no-install-recommends git \
-    && apt-get clean \
-    && rm -rf /var/lib/apt/lists/* \
-    # download PRScsx
-    && git clone --depth 1 -b master https://github.com/getian107/PRScsx.git \
-    # install python packages needed for pipeline
-    && conda install -y -n base -c conda-forge -c bioconda scipy=1.11.4 h5py pandas seaborn matplotlib pathlib python=3.11 \
-    && conda clean --all --yes
-
-USER root
-
-```
 ## Current `nextflow.config` contents
 
 
@@ -402,84 +453,4 @@ profiles {
     }
 }
 
-```
-# Detailed Pipeline Steps
-
-
-from pathlib import Path
-
-detailed_steps_file = Path("Markdowns/Pipeline_Detailed_Steps.md")
-
-# Write the detailed steps content to a separate file
-detailed_steps_file
-
-# Detailed Steps for Runnning One of our Pipelines
-
-Note: test data were obtained from the [SAIGE github repo](https://github.com/saigegit/SAIGE).
-
-## Part I: Setup
-1. Start your own tools directory and go there. You may do this in your project analysis directory, but it often makes sense to clone into a general `tools` location
-
-```sh
-# Make a directory to clone the pipeline into
-TOOLS_DIR="/path/to/tools/directory"
-mkdir $TOOLS_DIR
-cd $TOOLS_DIR
-```
-
-2. Download the source code by cloning from git
-
-```sh
-git clone https://github.com/PMBB-Informatics-and-Genomics/pmbb-nf-toolkit-saige-family.git
-cd ${TOOLS_DIR}/pmbb-nf-toolkit-saige-family/
-```
-
-3. Build the `saige.sif` singularity image
-- you may call the image whatever you like, and store it wherever you like. Just make sure you specify the name in `nextflow.conf`
-- this does NOT have to be done for every saige-based analysis, but it is good practice to re-build every so often as we update regularly. 
-
-```sh
-cd ${TOOLS_DIR}/pmbb-nf-toolkit-saige-family/
-singularity build saige.sif docker://pennbiobank/saige:latest
-```
-
-## Part II: Configure your run
-
-1. Make a separate analysis/run/working directory.
-   - The quickest way to get started, is to run the analysis in the folder the pipeline is run. However, subsequent analyses will over-write results from previous analyses. 
-   - ❗This step is optional, but We Highly recommend making a  `tools` directory separate from your `run` directory. The only items that need to be in the run directory are the `nextflow.conf` file and the `${workflow}.conf` file.
-
-```sh
-WDIR="/path/to/analysis/run1"
-mkdir -p 
-cd $WDIR
-```
-
-2. Fill out the `nextflow.config` file for your system.
-    - See [Nextflow configuration documentation](https://www.nextflow.io/docs/latest/config.html) for information on how to configure this file. An example can be found on our GitHub: [Nextflow Config](https://github.com/PMBB-Informatics-and-Genomics/pmbb-geno-pheno-toolkit/Example_Configs/nextflow.config).
-    - ❗IMPORTANTLY, you must configure a user-defined profile for your run environments (local, docker, saige, cluster, etc.). If multiple profiles are specified, run with a specific profile using `nextflow run -profile ${MY_PROFILE}`.
-    - For singularity, The profile's attribute `process.container` should be set to `'/path/to/saige.sif'` (replace `/path/to` with the location where you built the image above). See [Nextflow Executor Information](https://www.nextflow.io/docs/latest/executor.html) for more details.
-    - ⚠️As this file remains mostly unchanged for your system, We recommend storing this file in the `tools/pipeline` directory and symlinking it to your run directory.
-
-3. Create a pipeline-specific `.config` file specifying your run parameters and input files. See Below for workflow-specific parameters and what they mean.
-   - Everything in here can be configured in `nextflow.config`, however we find it easier to separate the system-level profiles from the individual run parameters. 
-   - Examples can be found in our Pipeline-Specific [Example Config Files](https://github.com/PMBB-Informatics-and-Genomics/pmbb-geno-pheno-toolkit/Example_Configs/).
-   - you can compartamentalize your config file as much as you like by passing 
-   - There are 2 ways to specify the config file during a run:
-      - with the `-c` option on the command line: `nextflow run -c /path/to/workflow.conf`
-      - in the `nextflow.conf`: at the top of the file add: `includeConfig '/path/to/workflow.conf'` 
-
-## Part III: Run your analysis
-
-- ❗We HIGHLY recommend doing a STUB run to test the analysis using the `-stub` flag. This is a dry run to make sure your environment, parameters, and input_files are specified and formatted correctly. 
-- ❗We HIGHLY recommend doing a test run with the included test data in `${TOOLS_DIR}/pmbb-nf-toolkit-saige-family/test_data`
-- in the `test_data/` directory for each pipeline, we have several pre-configured analyses runs with input data and fully-specified config files.
-
-```sh
-# run an exwas stub
-nextflow run /path/to/pmbb-nf-toolkit-saige-family/workflows/saige_exwas.nf -profile cluster -c /path/to/run1/exwas.conf -stub
-# run an exwas for real
-nextflow run /path/to/pmbb-nf-toolkit-saige-family/workflows/saige_exwas.nf -profile cluster -c /path/to/run1/exwas.conf
-# resume an exwas run if it was interrupted or ran into an error
-nextflow run /path/to/pmbb-nf-toolkit-saige-family/workflows/saige_exwas.nf -profile cluster -c /path/to/run1/exwas.conf -resume
 ```

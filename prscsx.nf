@@ -393,7 +393,6 @@ workflow PRScsx {
 process make_pgs_input_and_bim {
     publishDir "${launchDir}/${cohort}/"
     memory = '65 GB'
-    machineType 'n2-standard-16'
     input:
         tuple val(score_group), val(cohort), val(ancestry), val(pheno), path(sumstats)
         val(chr_colname)
@@ -566,7 +565,6 @@ process make_pgs_input_and_bim {
 
 process cat_bim {
     publishDir "${launchDir}/bim_files/"
-    machineType 'n2-standard-4'
     input:
         tuple val(score_group), val(pheno), path(all_bim_files)
         val(my_python)
@@ -614,7 +612,6 @@ process cat_bim {
 }
 process prscsx {
     publishDir "${launchDir}/PRScsx_output/chromosome_separated_outputs/"
-    machineType 'n2-standard-4'
 
     input:
         tuple val(score_group), val(pheno), val(sample_sizes), path(pgs_input_files), path(bim_output_file), val(chromosome)
@@ -717,7 +714,6 @@ process prscsx {
 
 process cat_pgs_outputs {
     publishDir "${launchDir}/PRScsx_output/concatenated_outputs/",mode:'copy'
-    machineType 'n2-standard-4'
     input:
         tuple val(score_group), val(ancestry), val(pheno), file(prscsx_output_files), val(cohort)
         val(my_python)
@@ -820,7 +816,6 @@ process cat_pgs_outputs {
 
 process make_pgs_violinplots {
     publishDir "${launchDir}/Plots/",mode:'copy'
-    machineType 'n2-standard-4'
     input:
         path(summary_files)
         path(pgs_violinplots_script)
@@ -854,7 +849,6 @@ process make_pgs_violinplots {
 import groovy.json.JsonBuilder
 process dump_params_to_json {
     publishDir "${launchDir}/Summary", mode: 'copy'
-    machineType 'n2-standard-2'
 
     input:
         val params_dict
